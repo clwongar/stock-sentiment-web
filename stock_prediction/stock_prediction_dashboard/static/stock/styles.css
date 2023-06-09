@@ -1,0 +1,29 @@
+.symbolCol{
+    padding-right: 10px;
+    text-align: center;
+}
+
+.sentCol{
+    padding-left: 10px;
+    text-align: center;
+}
+
+.overallTable{
+    border: 1px solid;
+}
+
+.chartContainer{
+    display: flex;
+    align-items: flex-start;
+    padding-top: 20px;
+}
+
+#pieChartDiv{
+    width:20%;
+    height:100%;
+}
+
+#barChartDiv{
+    width:45%;
+    height:100%;
+}

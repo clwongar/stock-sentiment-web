@@ -1,0 +1,56 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <script src="{% static 'stock/stock.js' %}"></script>
+        <link rel="stylesheet" href="{% static 'stock/styles.css' %}">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <title>Stock Sentiment Analysis Dashboard</title>
+    </head>
+    <body>
+        <h1 style="text-align:center">Stock Prediction Dashboard</h1>
+
+        <div>
+            <div>
+                <div>
+                    <label for="stocks">Choose a stock:</label>
+                    <select id="stock_list">
+                    </select>
+                </div>
+                
+                <div class="chartContainer">
+                    <div id="pieChartDiv">
+                        <label for="date">Pick a date:</label>
+                        <input id="datepicker" type="date"/>
+                        <canvas id="pie_chart"></canvas>
+                    </div>
+        
+                    <div id="barChartDiv">
+                        <canvas id="bar_chart"></canvas>
+                    </div>
+                </div>
+            </div>
+    
+            <div>
+                <table class="overallTable" id="overallStock">
+                    <tr>
+                      <th class="symbolCol">Symbol</th>
+                      <th class="sentCol">Average Sentiment</th>
+                    </tr>
+                    <tr>
+                      <td class="symbolCol">AAPL</td>
+                      <td class="sentCol">+1</td>
+                    </tr>
+                    <tr>
+                      <td class="symbolCol">ADBE</td>
+                      <td class="sentCol">+1</td>
+                    </tr>
+                  </table>
+            </div>
+        </div>
+
+
+
+    </body>
+
+</html>
