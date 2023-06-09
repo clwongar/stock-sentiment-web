@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     load_date();
     load_stock_name();
+    load_overall_table();
  
   });
 
@@ -169,6 +170,26 @@ function load_bar_chart(stock_name){
 
 
     });
+}
+
+function load_overall_table(){
+  fetch('/stock_prediction/overall')
+  .then(response => response.json())
+  .then(scores => {
+      scores.forEach((score) => {        
+          var sign = '+';
+          if (score.score < 0) sign = '-';
+          var table = document.getElementById("overallTable");
+          var tr = document.createElement("tr");
+          var th_symbol = document.createElement("th");
+          var th_score = document.createElement("th");
+          th_symbol.innerText = score.symbol;
+          th_score.innerText = sign + score.score.toFixed(2);;
+          tr.appendChild(th_symbol);
+          tr.appendChild(th_score);
+          table.appendChild(tr);
+      });
+  });
 }
 
 function load_stock(stock_name){
