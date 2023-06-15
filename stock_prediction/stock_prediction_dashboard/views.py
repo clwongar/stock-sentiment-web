@@ -6,18 +6,27 @@ from django.http import JsonResponse
 from django.db.models import Count, Sum
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime, timedelta
+from polygon import RESTClient
+import requests
+import urllib.request
 
 #library for models
-#from transformers import BertTokenizer, TFBertForSequenceClassification
-#from transformers import InputExample, InputFeatures
-#import tensorflow as tf
+from transformers import BertTokenizer, TFBertForSequenceClassification
+from transformers import InputExample, InputFeatures
+import tensorflow as tf
+import csv
 #import pandas as pd
+
+#for extracting data
+client = RESTClient(api_key="31wqRQcmAzs0jxj7y3x9W1ROaZ3V2IN8")
+
+#model
+model = tf.keras.models.load_model('./model/')
+tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
 # Create your views here.
 def index(request):
-    return render(request, "stock_prediction/dashboard.html", {
-        "stock_info": stockSentiment.objects.all() 
-    })
+    return render(request, "stock_prediction/dashboard.html")
 
 @csrf_exempt
 def stock(request, symbol):
@@ -77,7 +86,7 @@ def getStockByDate(symbol, date):
 
 
 #for model prediction
-def predict(pred_sentences, model):
+def predict(pred_sentences, tokenizer, model):
     #Predictons
     tf_batch = tokenizer(pred_sentences, max_length=128, padding=True, truncation=True, return_tensors='tf')
     tf_outputs = model(tf_batch)
@@ -88,9 +97,40 @@ def predict(pred_sentences, model):
     predicted_sentiments = label.tolist()
     return predicted_sentiments
 
-#def updatePrediction(request):
-#    pred_sentences = ['Market share decreased on the route between Helsinki in Finland and Tallinn in Estonia by 0.1 percentage points to 24.8 % .', '$AAPL $131 rally mode', '$MSFT SQL Server revenue grew double-digit with SQL Server Premium revenue growing over 30% http://stks.co/ir2F', 'Koduextra is operating a retail chain of 11 stores , controlled by Finnish Non-Food Center KY , Rukax OY , and Scan-Tukka OY .', 'EA Launches Origin Online Game Distribution for Mac http://stks.co/aKTU via MacRumors $EA', 'Finnish fibers and plastic products maker Suominen Corporation said its net loss from continuing operations narrowed to 1.8 mln euro ( $ 2.3 mln ) in 2006 from 3.7 mln euro ( $ 4.8 mln ) in 2005 .']
-#    model = tf.keras.models.load_model('./model/')
-#    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-#    predicted_sentiments = predict(pred_sentences, model)
-#    return JsonResponse([{'sentence': pred_sentences, 'sentiment': predicted_sentiments}], safe=False)
+def updatePrediction(request):
+
+    #initialize variables
+    pred_dataset = []
+    curr_date = stockSentiment.objects.latest('date').date.strftime("%Y-%m-%d")#(datetime.now()-timedelta(hours=8)).strftime("%Y-%m-%d")
+
+    #get all symbols for update
+    symbol_query = list(stockInfo.objects.values("symbol").all())
+    symbol_str = ""
+    symbol_list = []
+    for s in symbol_query:
+        symbol_str += s['symbol'] + ','
+        symbol_list.append(s['symbol'])
+    symbol_str = symbol_str[:-1]
+
+    #get results
+    url = 'https://api.polygon.io/v2/reference/news?tickers=' + symbol_str + '&published_utc.gte=' + curr_date + '&sort=published_utc&sort=asc&limit=1000&apiKey=31wqRQcmAzs0jxj7y3x9W1ROaZ3V2IN8'
+    result = requests.get(url).json()['results']
+
+    #if not in database, need to add them
+    for r in result:
+        for ticker in r['tickers']:
+            if ticker in symbol_list:
+                if not stockSentiment.objects.filter(symbol=ticker, date=r['published_utc'][:10], sentence=r['title']).exists():
+                    pred_dataset.append([ticker, r['published_utc'][:10], r['title']])
+
+    #no need to update if nothing
+    if len(pred_dataset) == 0:
+        return JsonResponse({"message": "no new data"}, status=201)
+
+    #model prediction
+    predicted_sentiments = predict([row[2] for row in pred_dataset], tokenizer, model)
+    for i in range(len(pred_dataset)):
+        record = stockSentiment(symbol=pred_dataset[i][0], date=pred_dataset[i][1], sentence=pred_dataset[i][2], sentiment=predicted_sentiments[i])
+        record.save()
+
+    return JsonResponse({"symbol_list": symbol_str, 'url': url, 'content': pred_dataset}, status=201)

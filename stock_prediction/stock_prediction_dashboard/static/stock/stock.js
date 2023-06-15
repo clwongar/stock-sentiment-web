@@ -2,12 +2,23 @@ var pieChart;
 var barChart;
 
 document.addEventListener('DOMContentLoaded', function() {
-    
-    load_date();
-    load_stock_name();
-    load_overall_table();
- 
-  });
+  update_prediction();
+});
+
+function load_page(){
+  load_date();
+  load_stock_name();
+  load_overall_table();
+}
+
+function update_prediction(){
+  fetch('/stock_prediction/predict')
+  .then(response => response.json())
+  .then(result => {
+      console.log(result);
+  })
+  .then(() => load_page());  
+}
 
 function load_date(){
     var datepicker = document.querySelector('#datepicker');

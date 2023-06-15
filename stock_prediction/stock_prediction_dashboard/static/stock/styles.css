@@ -10,6 +10,9 @@
 
 .overallTable{
     border: 1px solid;
+    align-self: center;
+    height:100%;
+    
 }
 
 .chartContainer{
@@ -25,5 +28,12 @@
 
 #barChartDiv{
     width:45%;
+    height:100%;
+}
+
+#tableDiv{
+    display: flex;
+    justify-content: center;
+    width:25%;
     height:100%;
 }

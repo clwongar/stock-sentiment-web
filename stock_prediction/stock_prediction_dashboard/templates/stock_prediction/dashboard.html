@@ -16,6 +16,7 @@
                     <label for="stocks">Choose a stock:</label>
                     <select id="stock_list">
                     </select>
+                    
                 </div>
                 
                 <div class="chartContainer">
@@ -28,17 +29,19 @@
                     <div id="barChartDiv">
                         <canvas id="bar_chart"></canvas>
                     </div>
+                    
+                    <div id="tableDiv">
+                        <table class="overallTable" id="overallTable">
+                            <tr>
+                              <th class="symbolCol">Symbol</th>
+                              <th class="sentCol">Average Sentiment</th>
+                            </tr>
+                        </table>
+                    </div>
+     
                 </div>
             </div>
     
-            <div>
-                <table class="overallTable" id="overallTable">
-                    <tr>
-                      <th class="symbolCol">Symbol</th>
-                      <th class="sentCol">Average Sentiment</th>
-                    </tr>
-                  </table>
-            </div>
         </div>
 
 
