@@ -9,4 +9,19 @@
  pip install tensorflow
  pip install transformers
  ```
- 
+
+Need to copy Model and Frontend folder in ./stock-sentiment-web/stock_prediction
+
+### Open Django (port 8000)
+ ```
+cd YOURPATH\stock-sentiment-web\stock_prediction
+py manage.py runserver
+ ```
+
+### Open Frontend (changed utils/global.js server_baseURL to 'http://127.0.0.1:8000/stock_prediction')
+ ```
+cd YOURPATH\stock-sentiment-web\stock_prediction\Frontend
+npm run dev
+ ```
+
+Go to http://localhost:3000 and can see the webpage
