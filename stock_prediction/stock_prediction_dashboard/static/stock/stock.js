@@ -9,6 +9,48 @@ function load_page(){
   load_date();
   load_stock_name();
   load_overall_table();
+  load_overview();
+}
+
+function load_overview(){
+  fetch('/stock_prediction/getStockDetails')
+  .then(response => response.json())
+  .then(stockinfo => {
+    stockinfo.forEach((stock) => {   
+          var table = document.getElementById("overviewTable");
+          var tr = document.createElement("tr");
+          create_th('img', stock.ImageURL, tr);
+          create_th('str', stock.Ticker, tr);
+          create_th('str', stock.Name, tr);
+          create_th('float', stock.LatestPrice, tr);
+          create_th('percent', stock.PercentageChange, tr);
+          create_th('float', stock.Volume, tr);
+          create_th('float', stock.MarketCap, tr);
+          //create_th('str', stock.Name, tr);
+          table.appendChild(tr);
+
+      });
+  });
+}
+
+function create_th(type, input, tr){
+  var th = document.createElement("th");
+
+  if(type == 'img'){
+    //th.innerHTML = "<img src='" + input + "'>";
+  }
+  else if (type == 'float'){
+    th.innerText = input.toFixed(2);
+  }
+  else if(type == 'percent'){
+    th.innerText = (input * 100).toFixed(2) + '%';
+  }
+  else{
+    th.innerText = input;
+  }
+
+  tr.appendChild(th);
+
 }
 
 function update_prediction(){
@@ -42,11 +84,11 @@ function load_stock_name(){
     .then(stock_list => {
         stock_list.forEach((stock) => {
             var option = document.createElement("option");
-            option.value = stock.symbol;
-            option.text = stock.symbol;
+            option.value = stock.Ticker;
+            option.text = stock.Ticker;
             stock_dropdown.appendChild(option);      
         });
-        load_stock(stock_list[0].symbol);
+        load_stock(stock_list[0].Ticker);
     });
 
     
@@ -123,14 +165,20 @@ function load_bar_chart(stock_name){
     .then(stock_info => {
         var stock_name = stock_info[0].name;
         let dates = stock_info[0].date;
-        let data = [[],[],[]]
+        let data = [];
+        
+        for (var i = 0; i < 3; i++){
+            let arr2 = new Array(7).fill(0);
+            data.push(arr2);
+        }
 
+        index = 0
         stock_info[0].sentiment.forEach((info) => {        
-            index = 0
             info.forEach((sent) => {
-              data[index].push(sent.total);
-              index+=1;
+              data[sent.sentiment][index] = sent.total;
+              
             });
+            index+=1;
         });
 
         console.log(data);
@@ -192,11 +240,11 @@ function load_overall_table(){
           if (score.score < 0) sign = '-';
           var table = document.getElementById("overallTable");
           var tr = document.createElement("tr");
-          var th_symbol = document.createElement("th");
+          var th_ticker = document.createElement("th");
           var th_score = document.createElement("th");
-          th_symbol.innerText = score.symbol;
+          th_ticker.innerText = score.Ticker;
           th_score.innerText = sign + score.score.toFixed(2);;
-          tr.appendChild(th_symbol);
+          tr.appendChild(th_ticker);
           tr.appendChild(th_score);
           table.appendChild(tr);
       });

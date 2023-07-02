@@ -28,17 +28,30 @@ def predict(pred_sentences, tokenizer, model):
     predicted_sentiments = label.tolist()
     return predicted_sentiments
 
+def updatePrediction(symbol, date):
+    predict_dataset = []
+    for n in client.list_ticker_news(symbol, published_utc_gte=date, order="asc",limit=1000):
+        if not stockSentiment.objects.filter(Ticker=symbol, date=n.published_utc[:10], sentence=n.title).exists():
+            predict_dataset.append([symbol, n.published_utc[:10], n.title])
+    predicted_sentiments = predict([row[2] for row in predict_dataset], tokenizer, model)
+    for i in range(len(predict_dataset)):
+        record = stockSentiment(Ticker=predict_dataset[i][0], date=predict_dataset[i][1], sentence=predict_dataset[i][2], sentiment=predicted_sentiments[i])
+        record.save()
+
 #update from Apr 1 to today
+#["AAPL", "MSFT", "GOOG", "AMZN", "NVDA", "TSLA", "META", "TSM", "AVGO", "ORCL"]
+'''
 def updatePrediction(symbol):
     pred_dataset = []
     curr_date = datetime.now().strftime("%Y-%m-%d")
-    for n in client.list_ticker_news(symbol, published_utc_gte="2023-04-01", published_utc_lte="2023-04-30", order="asc",limit=1000):
+    for n in client.list_ticker_news(Ticker, published_utc_gte="2023-04-01", published_utc_lte="2023-04-30", order="asc",limit=1000):
         pred_dataset.append([symbol, n.published_utc[:10], n.title])
-    for n in client.list_ticker_news(symbol, published_utc_gte="2023-05-01", published_utc_lte="2023-05-31", order="asc",limit=1000):
+    for n in client.list_ticker_news(Ticker, published_utc_gte="2023-05-01", published_utc_lte="2023-05-31", order="asc",limit=1000):
         pred_dataset.append([symbol, n.published_utc[:10], n.title])
-    for n in client.list_ticker_news(symbol, published_utc_gte="2023-06-01", published_utc_lte=curr_date, order="asc",limit=1000):
+    for n in client.list_ticker_news(Ticker, published_utc_gte="2023-06-01", published_utc_lte=curr_date, order="asc",limit=1000):
         pred_dataset.append([symbol, n.published_utc[:10], n.title])
     predicted_sentiments = predict([row[2] for row in pred_dataset], tokenizer, model)
     for i in range(len(pred_dataset)):
-        record = stockSentiment(symbol=pred_dataset[i][0], date=pred_dataset[i][1], sentence=pred_dataset[i][2], sentiment=predicted_sentiments[i])
+        record = stockSentiment(Ticker=pred_dataset[i][0], date=pred_dataset[i][1], sentence=pred_dataset[i][2], sentiment=predicted_sentiments[i])
         record.save()
+'''

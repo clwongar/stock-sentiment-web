@@ -15,8 +15,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from stock_prediction_dashboard.views import *
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('stock_prediction/', include("stock_prediction_dashboard.urls"))
+    path('stock_prediction/', include("stock_prediction_dashboard.urls")),
+    #path('', stockView.as_view(), name='stockPrediction')
+    #path("stock_prediction/", include("django_nextjs.urls"))
 ]

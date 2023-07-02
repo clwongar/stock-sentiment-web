@@ -15,8 +15,8 @@ class Migration(migrations.Migration):
             name='stockInfo',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('symbol', models.CharField(max_length=10)),
-                ('company_name', models.CharField(max_length=64)),
+                ('Ticker', models.CharField(max_length=45)),
+                ('Name', models.CharField(max_length=64)),
             ],
         ),
         migrations.CreateModel(
@@ -24,7 +24,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('symbol', models.CharField(max_length=10)),
-                ('date', models.DateTimeField()),
+                ('date', models.DateField()),
                 ('sentence', models.CharField(max_length=2048)),
                 ('sentiment', models.IntegerField()),
             ],
