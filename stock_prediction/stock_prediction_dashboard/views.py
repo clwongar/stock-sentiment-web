@@ -1,18 +1,13 @@
 import json
 from django.http import HttpResponse
 from django.shortcuts import render
-#from rest_framework.views import APIView
-#from rest_framework.response import Response
 from .models import *
-#from .serializer import *
 from django.http import JsonResponse
 from django.db.models import Count, Sum
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime, timedelta
-#from polygon import RESTClient
 import requests
 import urllib.request
-#from django_nextjs.render import render_nextjs_page_sync
 
 
 #library for models
@@ -20,10 +15,9 @@ from transformers import BertTokenizer, TFBertForSequenceClassification
 from transformers import InputExample, InputFeatures
 import tensorflow as tf
 import csv
-#import pandas as pd
 
-#for extracting data
-#client = RESTClient(api_key="31wqRQcmAzs0jxj7y3x9W1ROaZ3V2IN8")
+#stocks used
+top10 = ["AAPL", "MSFT", "GOOG", "AMZN", "NVDA", "TSLA", "META", "TSM", "AVGO", "ORCL"]
 
 #model
 model = tf.keras.models.load_model('./model/')
@@ -33,6 +27,122 @@ tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 def index(request):
     return render(request, "stock_prediction/dashboard.html")
 
+#for model prediction
+def predict(pred_sentences, tokenizer, model):
+    #Predictons
+    tf_batch = tokenizer(pred_sentences, max_length=128, padding=True, truncation=True, return_tensors='tf')
+    tf_outputs = model(tf_batch)
+    tf_predictions = tf.nn.softmax(tf_outputs['logits'], axis=-1)
+    label = ['Negative','Positive']
+    label = tf.argmax(tf_predictions, axis=1)
+    label = label.numpy()
+    predicted_sentiments = label.tolist()
+    return predicted_sentiments
+
+#for auto updating
+def update_sentiment(index):
+
+    print("start " + str(index))
+
+    yesterday = (datetime.now() - timedelta(hours=32)).strftime("%Y-%m-%d") 
+
+    Tickers = top10[:5]
+
+    if index == 2:
+        Tickers = top10[5:]
+
+    for ticker in Tickers:
+        url = 'https://api.polygon.io/v2/reference/news?ticker=' + ticker + '&published_utc.gte=' + yesterday + '&sort=published_utc&sort=asc&limit=1000&apiKey=31wqRQcmAzs0jxj7y3x9W1ROaZ3V2IN8'
+        result = requests.get(url).json()['results']
+        pred_dataset = []
+
+        #if not in database, need to add them
+        for r in result:
+            if not stockSentiment.objects.filter(Ticker=ticker, date=r['published_utc'][:10], sentence=r['title']).exists():
+                pred_dataset.append([ticker, r['published_utc'][:10], r['title']])
+
+        #model prediction only with values
+        if len(pred_dataset) != 0:
+            predicted_sentiments = predict([row[2] for row in pred_dataset], tokenizer, model)
+            for i in range(len(pred_dataset)):
+                record = stockSentiment(Ticker=pred_dataset[i][0], date=pred_dataset[i][1], sentence=pred_dataset[i][2], sentiment=predicted_sentiments[i])
+                record.save()
+
+        print(str(index) + " " + ticker + " done.")
+
+    print("end " + str(index))
+
+    
+
+def update_stock_price(index):
+
+    print("start " + str(index))
+
+    Tickers = top10[:5]
+
+    if index == 4:
+        Tickers = top10[5:]
+
+    today = datetime.utcnow()
+    d = timedelta(days=5)
+    a = (today - d).strftime("%Y-%m-%d")
+
+    for ticker in Tickers:
+
+        url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{a}/{today.strftime('%Y-%m-%d')}?adjusted=true&sort=desc&limit=120&apiKey=31wqRQcmAzs0jxj7y3x9W1ROaZ3V2IN8"
+
+        result_json = requests.get(url).json()
+
+        if result_json['resultsCount'] != 0:
+
+            result_curr = result_json['results'][0]   
+            result_prev = result_json['results'][1]            
+            s = stockInfo.objects.get(Ticker=ticker)
+            s.PrevPrevPrice = result_prev['c']
+            s.LatestPrice = result_curr['c']
+            s.Volume = result_curr['v']
+            s.save()
+
+        print(str(index) + " " + ticker + " done.")
+
+    print("end " + str(index))
+
+def update_market_cap(index):
+
+    print("start " + str(index))
+
+    Tickers = top10[:5]
+
+    if index == 6:
+        Tickers = top10[5:]
+
+    for ticker in Tickers:
+
+        url = f"https://api.polygon.io/v3/reference/tickers/{ticker}?apiKey=31wqRQcmAzs0jxj7y3x9W1ROaZ3V2IN8"
+
+        result_json = requests.get(url).json()
+
+        result_curr = result_json['results']['market_cap']         
+        s = stockInfo.objects.get(Ticker=ticker)
+        s.MarketCap = result_curr
+        s.save()
+
+        print(str(index) + " " + ticker + " done.")
+
+    print("end " + str(index))
+
+#1, 2 -> sentiment, 3, 4 -> stock details
+def dailyUpdate(index):
+
+    if index == 1 or index == 2:
+        update_sentiment(index)
+    if index == 3 or index == 4:
+        update_stock_price(index)
+    if index == 5 or index == 6:
+        update_market_cap(index)
+
+
+
 #Overview Page
 def getStockImg(request):
     return_json = []
@@ -41,54 +151,14 @@ def getStockImg(request):
         return_json.append({"id": stock.id, "Ticker": stock.Ticker, "ImageURL": stock.ImageURL})
     return JsonResponse(return_json, safe=False)
 
-
 def getStockDetails(request):
-
-    lastupdate = updateInfo.objects.all().first().lastUpdate.strftime("%Y-%m-%d")
-    today = datetime.now()-timedelta(hours=8)#.strftime("%Y-%m-%d")
-    
-    if lastupdate != today.strftime("%Y-%m-%d"):
-    
-        curr_day = (today - timedelta(days=1)).strftime("%Y-%m-%d")
-        #prev_day = (today - timedelta(days=2)).strftime("%Y-%m-%d")
-
-        ticker_list = list(stockInfo.objects.values("Ticker"))
-        tickers = []
-        for ticker in ticker_list:
-            tickers.append(ticker['Ticker'])
-
-
-        urls = ["https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/", "?adjusted=true&apiKey=31wqRQcmAzs0jxj7y3x9W1ROaZ3V2IN8"]
-        url_curr = urls[0] + curr_day + urls[1]
-        #url_prev = urls[0] + prev_day + urls[1]
-
-        result_json = requests.get(url_curr).json()
-        #result_prev = requests.get(url_prev).json()['results']
-
-        if result_json['resultsCount'] != 0:
-
-            result_curr = result_json['results']             
-            for r in result_curr:
-                if r['T'] in tickers:
-                    s = stockInfo.objects.get(Ticker=r['T'])
-                    s.PrevPrevPrice = s.LatestPrice
-                    s.LatestPrice = r['c']
-                    s.Volume = r['v']
-                    s.save()
-
-            #for r in result_prev:
-            #    if r['T'] in result_prev:
-            #        s = stockInfo.objects.get(Ticker=r['T'])
-            #        s.PrevPrice = r['c']
-            #        s.save()
-
-            newDate = updateInfo.objects.all()[:1].get()
-            newDate.lastUpdate = today
-            newDate.save()
-
+    #updateStock()
     stock_info = stockInfo.objects.all()
     return JsonResponse([stock.serialize() for stock in stock_info], safe=False)
 
+
+
+####not used
 @csrf_exempt
 def stock(request, Ticker):
 
@@ -145,17 +215,7 @@ def getStockByDate(Ticker, date):
     stock_sentiment = list(stockSentiment.objects.filter(Ticker=Ticker, date=date).values('sentiment').annotate(total=Count('sentiment')))
     return stock_sentiment
 
-#for model prediction
-def predict(pred_sentences, tokenizer, model):
-    #Predictons
-    tf_batch = tokenizer(pred_sentences, max_length=128, padding=True, truncation=True, return_tensors='tf')
-    tf_outputs = model(tf_batch)
-    tf_predictions = tf.nn.softmax(tf_outputs['logits'], axis=-1)
-    labels = ['Negative','Positive']
-    label = tf.argmax(tf_predictions, axis=1)
-    label = label.numpy()
-    predicted_sentiments = label.tolist()
-    return predicted_sentiments
+
 
 def updatePrediction(request):
 

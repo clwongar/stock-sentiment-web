@@ -41,7 +41,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     "django_nextjs",
     "rest_framework",
-    "corsheaders"
+    "corsheaders",
+    "django_apscheduler"
 ]
 
 MIDDLEWARE = [

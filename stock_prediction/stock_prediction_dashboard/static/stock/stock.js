@@ -2,7 +2,8 @@ var pieChart;
 var barChart;
 
 document.addEventListener('DOMContentLoaded', function() {
-  update_prediction();
+  //update_prediction();
+  load_page();
 });
 
 function load_page(){
