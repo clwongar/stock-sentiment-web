@@ -8,6 +8,7 @@
  conda install -c anaconda django
  pip install tensorflow
  pip install transformers
+ pip install moment
  ```
 
 Need to copy Model and Frontend folder in ./stock-sentiment-web/stock_prediction
