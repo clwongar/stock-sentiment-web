@@ -35,8 +35,11 @@ bert_model = TFBertModel.from_pretrained("bert-base-uncased")
 news_text_input = Input(shape=(150,), dtype="int32", name="news_text_input")
 stock_price_input = Input(shape=(1,), dtype="float32", name="stock_price_input")
 date_input = Input(shape=(1,), dtype="float32", name="date_input")  # Updated input shape for Unix time
+#ticker_input = Input(shape=(1,), dtype="float32", name="ticker_input")
 # BERT layer for text processing
 bert_output = bert_model(news_text_input)[1]
+# Add a dense layer to reduce the dimensionality of BERT output
+#reduced_bert_output = Dense(50, activation="relu")(bert_output)
 # Concatenate BERT output with stock price and date
 merged_inputs = Concatenate(axis=1)([bert_output, stock_price_input, date_input])
 # Add a time dimension for LSTM
