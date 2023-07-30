@@ -39,9 +39,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    "django_nextjs",
-    "rest_framework",
-    "corsheaders",
+    #"django_nextjs",
+    #"rest_framework",
+    #"corsheaders",
     "django_apscheduler"
 ]
 
@@ -53,7 +53,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware'
+    #'corsheaders.middleware.CorsMiddleware'
 ]
 
 
@@ -133,10 +133,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 #manually added
 #reference: https://blog.logrocket.com/how-and-why-you-should-use-next-js-django/#:~:text=Using%20django%2Dnextjs&text=js%20and%20Django%20together%20is,service%20that%20generates%20the%20HTML.
-REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny'
-    ]
-}
+#REST_FRAMEWORK = {
+#    'DEFAULT_PERMISSION_CLASSES': [
+#        'rest_framework.permissions.AllowAny'
+#    ]
+#}
 
-CORS_ORIGIN_ALLOW_ALL = True
+#CORS_ORIGIN_ALLOW_ALL = True

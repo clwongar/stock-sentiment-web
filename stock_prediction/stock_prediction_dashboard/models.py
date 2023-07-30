@@ -1,10 +1,10 @@
 from django.db import models
 from datetime import date
 
-class updateInfo(models.Model):
-    lastUpdate = models.DateField(default=date.today)
-
 # Create your models here.
+class lastUpdate(models.Model):
+    date = models.DateField(default=date.today)
+
 class stockInfo(models.Model):
     Ticker = models.CharField(max_length=45)
     Name = models.CharField(max_length=64)
@@ -41,4 +41,9 @@ class stockSentiment(models.Model):
             "sentence": self.sentence,
             "sentiment": self.sentiment
         }
+    
+class stockPrice(models.Model):
+    Ticker = models.CharField(max_length=10)
+    date = models.DateField(default=date.today)
+    stock_price = models.FloatField(default=0)
 
