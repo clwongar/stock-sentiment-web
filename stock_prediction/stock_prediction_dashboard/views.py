@@ -110,6 +110,11 @@ def update_predict_price_change():
     pred_set_np = np.array(prediction_set)
     predictions = lstm_model.predict(pred_set_np)
 
+    for i in range(len(top10)):
+        s = stockInfo.objects.get(Ticker=top10[i])
+        s.PredictPrice = predictions[i][0]
+        s.save()
+
     print(pred_set_np.shape)
     print(predictions)
     
@@ -123,17 +128,64 @@ def update_stock_price(index):
     today = datetime.now().date()
     d = timedelta(days=30)
     a = (today - d).strftime("%Y-%m-%d")
-    days_to_update = (today - start_date).days
-    start_date = start_date.strftime("%Y-%m-%d")
+    start_date_str = start_date.strftime("%Y-%m-%d")
+    #print("start time: " + start_date.strftime("%Y-%m-%d"))
     for ticker in Tickers:
         url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{a}/{today.strftime('%Y-%m-%d')}?adjusted=true&sort=desc&limit=120&apiKey=31wqRQcmAzs0jxj7y3x9W1ROaZ3V2IN8"
         result_json = requests.get(url).json()
+
         if result_json['resultsCount'] != 0:
+
             #update stock price for prediction
-            for i in range(days_to_update):
+
+            #get average sentiment data
+            sentiment_sum = list(stockSentiment.objects.filter(Ticker=ticker, date__range=[start_date_str, today]).values('date').order_by('date').annotate(total_sentiment=Sum('sentiment')))
+            sentiment_count = list(stockSentiment.objects.filter(Ticker=ticker, date__range=[start_date_str, today]).values('date').order_by('date').annotate(total_count=Count('sentiment')))
+            #average sentiment of the day {date: avg_sentiment}
+            sent_avg = {}
+            for i in range(len(sentiment_sum)):
+                date = sentiment_sum[i]['date'].strftime("%Y-%m-%d")
+                #since in the database it is [0: negative, 1: neutral, 2: positive]
+                #need to -1 for all values and then do the average
+                avg = (sentiment_sum[i]['total_sentiment'] - sentiment_count[i]['total_count']) / sentiment_count[i]['total_count']
+                sent_avg[date] = avg
+
+            #stock price
+            current_date_str = datetime.now().strftime("%Y-%m-%d")
+            current_date = datetime.strptime(current_date_str,"%Y-%m-%d")
+            
+            #insert all new data
+            for i in range(len(result_json['results'])-1):
                 change = (result_json['results'][i]['c'] - result_json['results'][i+1]['c']) * 100 / result_json['results'][i+1]['c']
-                sp = stockPrice(Ticker=ticker, date=(today-timedelta(days=i)), stock_price=result_json['results'][i]['c'], stock_change=change,avg_sentiment=0)
-                sp.save()
+                date_str = datetime.utcfromtimestamp(result_json['results'][i]['t']/1000).strftime("%Y-%m-%d")
+                date = datetime.strptime(date_str,"%Y-%m-%d")
+                while date <= current_date:
+                    if current_date.strftime("%Y-%m-%d") == start_date.strftime("%Y-%m-%d"):
+                        break
+                    avg_sentiment=0
+                    if current_date.strftime("%Y-%m-%d") in sent_avg.keys():
+                        avg_sentiment = sent_avg[current_date.strftime("%Y-%m-%d")]
+                    sp = stockPrice(Ticker=ticker, date=current_date.strftime("%Y-%m-%d"), stock_price=result_json['results'][i]['c'], stock_change=change, avg_sentiment=avg_sentiment)
+                    sp.save()
+                    current_date = current_date-timedelta(days=1)
+
+                #do update if it is latest date and exit loop
+                if current_date.strftime("%Y-%m-%d") == start_date.strftime("%Y-%m-%d"):
+                    #print("do last update: " + start_date.strftime("%Y-%m-%d"))
+                    avg_sentiment = 0
+                    if start_date_str in sent_avg.keys():
+                        avg_sentiment = sent_avg[start_date_str]
+                    sp = stockPrice.objects.get(Ticker=ticker, date=start_date_str)
+                    sp.avg_sentiment = avg_sentiment
+                    #update only when there is value
+                    if date_str == start_date:
+                        sp.stock_price = result_json['results'][i]['c']
+                        sp.stock_change = change
+                    sp.save()
+                    break
+
+            #update last update date
+
             result_curr = result_json['results'][0]   
             result_prev = result_json['results'][1]            
             s = stockInfo.objects.get(Ticker=ticker)

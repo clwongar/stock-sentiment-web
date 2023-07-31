@@ -32,4 +32,15 @@ def update_stock(ticker):
             s.save()
             current_date = current_date-timedelta(days=1)
 
-#update_stock("AAPL")
+update_stock("AAPL")
+update_stock("MSFT")
+update_stock("GOOG")
+update_stock("AMZN")
+update_stock("NVDA")
+
+
+update_stock("TSLA")
+update_stock("META")
+update_stock("TSM")
+update_stock("AVGO")
+update_stock("ORCL")
