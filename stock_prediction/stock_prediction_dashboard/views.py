@@ -5,83 +5,52 @@ from .models import *
 from django.http import JsonResponse
 from django.db.models import Count, Sum
 from django.views.decorators.csrf import csrf_exempt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import requests
 import time
 import urllib.request
 
 
 #library for models
-#from transformers import BertTokenizer, TFBertForSequenceClassification
-#from transformers import InputExample, InputFeatures
 import numpy as np
 import tensorflow as tf
-from transformers import TFBertModel, BertTokenizer
-from tensorflow.keras.layers import Input, LSTM, Dense, Concatenate, Attention, TimeDistributed, Reshape
+from transformers import TFBertModel, BertTokenizer, TFBertForSequenceClassification
+from tensorflow.keras.layers import Input, LSTM, Dense, Concatenate, Attention, TimeDistributed, Reshape, Flatten
 from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
+from keras.models import Model
+from keras.layers import LSTM, Dense, Input
+from keras.preprocessing.sequence import TimeseriesGenerator
 import csv
 
 #stocks used #[0 5 3 1 6 8 4 9 2 7]
 top10 = ["AAPL", "MSFT", "GOOG", "AMZN", "NVDA", "TSLA", "META", "TSM", "AVGO", "ORCL"]
 top10_dict = {"AAPL": 0, "MSFT": 5, "GOOG": 3, "AMZN": 1, "NVDA": 6, "TSLA": 8, "META": 4, "TSM": 9, "AVGO": 2, "ORCL": 7}
 
-
 #deploy model
-# Instantiate the tokenizer
-tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-# Instantiate the BERT model
-bert_model = TFBertModel.from_pretrained("bert-base-uncased")
-# Define input layers
-news_text_input = Input(shape=(150,), dtype="int32", name="news_text_input")
-stock_price_input = Input(shape=(1,), dtype="float32", name="stock_price_input")
-date_input = Input(shape=(1,), dtype="float32", name="date_input")  # Updated input shape for Unix time
-#ticker_input = Input(shape=(1,), dtype="float32", name="ticker_input")
-# BERT layer for text processing
-bert_output = bert_model(news_text_input)[1]
-# Add a dense layer to reduce the dimensionality of BERT output
-#reduced_bert_output = Dense(50, activation="relu")(bert_output)
-# Concatenate BERT output with stock price and date
-merged_inputs = Concatenate(axis=1)([bert_output, stock_price_input, date_input])
-# Add a time dimension for LSTM
-reshaped_inputs = Reshape((1, 770))(merged_inputs)  # Updated input dimensions to match Unix time input
-# LSTM layer
-lstm_output = LSTM(64)(reshaped_inputs)
-# Attention layer
-attention = Attention()([lstm_output, lstm_output])
-# Output layer for price difference prediction
-price_diff_output = Dense(1, activation="linear", name="price_diff_output")(attention)
-# Create the model
-model = Model(inputs=[news_text_input, stock_price_input, date_input], outputs=price_diff_output)
+def predict(pred_sentences, model, batch_size=32):
+    # Initialize an empty list to store the predictions
+    predicted_sentiments = []
+    # Iterate over the sentences in batches
+    for i in range(0, len(pred_sentences), batch_size):
+        # Slice the input list to get the current batch
+        batch_sentences = pred_sentences[i:i+batch_size]
+        # Make predictions on the batch
+        tf_batch = tokenizer(batch_sentences, max_length=150, padding=True, truncation=True, return_tensors='tf')
+        tf_outputs = model(tf_batch)
+        tf_predictions = tf.nn.softmax(tf_outputs['logits'], axis=-1)
+        label = tf.argmax(tf_predictions, axis=1)
+        label = label.numpy().tolist()
+        # Map the numeric labels to their string counterparts and add them to the predictions list
+        #sentiment_map = {0:'negative', 1:'neutral', 2:'positive'}
+        #batch_predicted_sentiments = [sentiment_map[i] for i in label.tolist()]
+        predicted_sentiments.extend(label)
+    # Return the list of all predictions
+    return predicted_sentiments
 
-LEARNING_RATE = 3e-5
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE), loss="mean_squared_error")
-model.load_weights("./model/model_weights")
-
-#for testing
-#test_text = ["3 Stocks I'm Holding Forever", "1 Unstoppable Stock That Could Join Apple, Microsoft, Nvidia, Amazon, and Alphabet in the $1 Trillion Club", "Jamie Dimon says U.S. consumers are in ‘good shape.’ This evidence proves him wrong."]
-#test_label =  ["AAPL", "TSLA", "AMZN"]
-#test_price = [186.01, 281.38, 134.68]
-#test_date = [datetime(2023, 7, 15), datetime(2023, 7, 16), datetime(2023, 7, 16)]
-#test_text_tokenize = []
-#test_label_encode = []
-#test_unix = []
-
-#for text in test_text:
-#    test_text_tokenize.append(tokenizer.encode(text, max_length=150, truncation=True, padding="max_length"))
-
-#for label in test_label:
-#    test_label_encode.append(top10_dict[label])
-
-#for d in test_date:
-#    test_unix.append(time.mktime(d.timetuple()))
-
-#test_text_tokenize = np.stack(test_text_tokenize)
-#test_label_encode = np.stack(test_label_encode).reshape(-1, 1)
-#test_unix = np.stack(test_unix).reshape(-1, 1)
-#test_price = np.stack(test_price).reshape(-1, 1)
-
-#predictions = model.predict({"news_text_input": test_text_tokenize, "stock_price_input": test_price, "date_input": test_unix})
-#print(predictions)
+sentiment_model = TFBertForSequenceClassification.from_pretrained('./sentiment_model/')
+lstm_model = tf.keras.models.load_model('./lstm_model/')
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
 
 # Create your views here.
@@ -91,43 +60,58 @@ def index(request):
 #for auto updating
 def update_sentiment(index):
     print("start " + str(index))
-    today = (datetime.now() - timedelta(hours=8)).strftime("%Y-%m-%d")
+
+    today = (datetime.now() - timedelta(hours=8)).strftime("%Y-%m-%d") 
     last_update = lastUpdate.objects.last().date.strftime("%Y-%m-%d")
+
     Tickers = top10[:5]
+
     if index == 2:
         Tickers = top10[5:]
+
     for ticker in Tickers:
         url = 'https://api.polygon.io/v2/reference/news?ticker=' + ticker + '&published_utc.gte=' + last_update + '&published_utc.lte=' + today + '&sort=published_utc&sort=asc&limit=1000&apiKey=31wqRQcmAzs0jxj7y3x9W1ROaZ3V2IN8'
         result = requests.get(url).json()['results']
-        ticker_encode = top10_dict[ticker]
-        pred_text_ori = []
-        pred_date_ori = []
-        pred_text = [] 
-        pred_date = []
-        pred_ticker = []
-        pred_price = []
+        pred_dataset = []
+
         #if not in database, need to add them
         for r in result:
             if not stockSentiment.objects.filter(Ticker=ticker, date=r['published_utc'][:10], sentence=r['title']).exists():
-                pred_text_ori.append(r['title'])
-                pred_date_ori.append(r['published_utc'][:10])
-                pred_text.append(tokenizer.encode(r['title'], max_length=150, truncation=True, padding="max_length"))
-                pred_date.append(time.mktime((datetime.strptime(r['published_utc'][:10], '%Y-%m-%d')).timetuple()))
-                pred_ticker.append(ticker_encode)
-                pred_price.append(stockPrice.objects.get(Ticker=ticker, date=r['published_utc'][:10]).stock_price)
-        if len(pred_text) != 0:
-            pred_text = np.stack(pred_text)
-            pred_date = np.stack(pred_date).reshape(-1, 1)
-            pred_ticker = np.stack(pred_ticker).reshape(-1, 1)
-            predictions = model.predict({"news_text_input": pred_text, "stock_price_input": pred_ticker, "date_input": pred_date})
-            for i in range(len(predictions)):
-                temp_pred = np.sign(predictions[i][0])+1
-                #print(temp_pred)
-                record = stockSentiment(Ticker=ticker, date=pred_date_ori[i], sentence=pred_text_ori[i], sentiment=temp_pred)
+                pred_dataset.append([ticker, r['published_utc'][:10], r['title']])
+
+        if len(pred_dataset) != 0:
+            predicted_sentiments = predict([row[2] for row in pred_dataset], sentiment_model)
+            for i in range(len(pred_dataset)):
+                record = stockSentiment(Ticker=pred_dataset[i][0], date=pred_dataset[i][1], sentence=pred_dataset[i][2], sentiment=predicted_sentiments[i])
                 record.save()
+
         print(str(index) + " " + ticker + " done.")
+
     print("end " + str(index))
 
+def update_predict_price_change():
+
+    today = (datetime.now()).strftime("%Y-%m-%d")
+    start_day = (datetime.now()-timedelta(days=149)).strftime("%Y-%m-%d")
+    prediction_set = []
+
+    for ticker in top10:
+        stock_data = list(stockPrice.objects.filter(Ticker=ticker, date__range=[start_day, today]))
+        prediction_set_ticker = []
+        for item in stock_data:
+            avg_sent = item.avg_sentiment
+            unix = item.date.strftime("%Y-%m-%d")
+            unix = datetime.strptime(unix,"%Y-%m-%d")
+            unix = unix.replace(tzinfo=timezone.utc).timestamp() / 1000000000
+            price_change = item.stock_change
+            prediction_set_ticker.append([avg_sent, unix, price_change])
+        prediction_set.append(prediction_set_ticker)
+
+    pred_set_np = np.array(prediction_set)
+    predictions = lstm_model.predict(pred_set_np)
+
+    print(pred_set_np.shape)
+    print(predictions)
     
 
 def update_stock_price(index):
@@ -136,8 +120,8 @@ def update_stock_price(index):
     Tickers = top10[:5]
     if index == 4:
         Tickers = top10[5:]
-    today = datetime.utcnow().date()
-    d = timedelta(days=14)
+    today = datetime.now().date()
+    d = timedelta(days=30)
     a = (today - d).strftime("%Y-%m-%d")
     days_to_update = (today - start_date).days
     start_date = start_date.strftime("%Y-%m-%d")
@@ -147,7 +131,8 @@ def update_stock_price(index):
         if result_json['resultsCount'] != 0:
             #update stock price for prediction
             for i in range(days_to_update):
-                sp = stockPrice(Ticker=ticker, date=(today-timedelta(days=i)), stock_price=result_json['results'][i]['c'])
+                change = (result_json['results'][i]['c'] - result_json['results'][i+1]['c']) * 100 / result_json['results'][i+1]['c']
+                sp = stockPrice(Ticker=ticker, date=(today-timedelta(days=i)), stock_price=result_json['results'][i]['c'], stock_change=change,avg_sentiment=0)
                 sp.save()
             result_curr = result_json['results'][0]   
             result_prev = result_json['results'][1]            
@@ -158,6 +143,7 @@ def update_stock_price(index):
             s.save()
         print(str(index) + " " + ticker + " done.")
     print("end " + str(index))
+
 
 def update_market_cap(index):
 
@@ -192,8 +178,10 @@ def dailyUpdate(index):
         update_stock_price(index)
     if index == 5 or index == 6:
         update_market_cap(index)
+    if index == 7:
+        update_predict_price_change()
 
-    if (index == 2):
+    if (index == 6):
         last_update = lastUpdate.objects.last()
         last_update.date = datetime.utcnow().strftime("%Y-%m-%d")
         last_update.save()
@@ -216,11 +204,24 @@ def getStockDetails(request):
 
 #Prediction_page
 def stock(request, Ticker):
-    today = (datetime.utcnow()).strftime("%Y-%m-%d")
-    start_day = (datetime.utcnow()-timedelta(days=6)).strftime("%Y-%m-%d")
+    today = (datetime.now()).strftime("%Y-%m-%d")
+    start_day = (datetime.now()-timedelta(days=6)).strftime("%Y-%m-%d")
+    #today = (datetime.utcnow()).strftime("%Y-%m-%d")
+    #start_day = (datetime.utcnow()-timedelta(days=6)).strftime("%Y-%m-%d")
 
     if Ticker == "all":
-        stock_sentiment = list(stockSentiment.objects.filter(date=today).values("Ticker", "sentiment"))
+        stock_sentiment = []
+        for ticker in top10:
+            for i in range(7):
+                date = (datetime.now()-timedelta(days=i)).strftime("%Y-%m-%d")
+                temp_stock_sentiment = list(stockSentiment.objects.filter(Ticker=ticker, date=date).values("Ticker", "sentiment"))
+                if temp_stock_sentiment == []:
+                    print(ticker + ": " + date + " has no data.")
+                else:
+                    for item in temp_stock_sentiment:
+                        stock_sentiment.append(item)
+                    break
+        #print(stock_sentiment)
         return JsonResponse(stock_sentiment, safe=False)
     
     stock_sentiment = list(stockSentiment.objects.filter(date__range=[start_day,today], Ticker=Ticker).values("date", "sentiment"))

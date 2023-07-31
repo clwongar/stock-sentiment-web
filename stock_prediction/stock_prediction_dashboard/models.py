@@ -13,6 +13,7 @@ class stockInfo(models.Model):
     LatestPrice = models.FloatField(default=0)
     PrevPrice = models.FloatField(default=0)
     Volume = models.FloatField(default=0)
+    PredictPrice = models.FloatField(default=0)
 
     def serialize(self):
         return {
@@ -46,4 +47,6 @@ class stockPrice(models.Model):
     Ticker = models.CharField(max_length=10)
     date = models.DateField(default=date.today)
     stock_price = models.FloatField(default=0)
+    stock_change = models.FloatField(default=0)
+    avg_sentiment = models.FloatField(default=0)
 
